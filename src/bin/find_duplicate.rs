@@ -24,28 +24,40 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let sled = sled::open("./data/file.db")?;
     let (tx, mut rx) = sync::mpsc::channel(100);
-    tokio::spawn(async move {
+    let sled_clone = sled.clone();
+    let handle = tokio::spawn(async move {
         while let Some((absolute_path, buf)) = rx.recv().await {
-            let sled_clone = sled.clone();
-            handle_file(absolute_path, buf, sled_clone).unwrap();
+            let sled_clone = sled_clone.clone();
+            if let Err(e) = handle_file(absolute_path, buf, sled_clone) {
+                log::error!("handle file err: {}", e);
+            };
         }
     });
     for entry in WalkDir::new(args.dir) {
-        let entry = entry?;
-        if entry.path().is_file() {
-            let absolute_path = fs::canonicalize(entry.path())?;
-            if let Some(absolute_path_str) = absolute_path.to_str() {
-                if !absolute_path_str.contains("/.") && !absolute_path_str.contains("/#") {
-                    let mut file = File::open(entry.path())?;
-                    let mut buf = Vec::new();
-                    file.read_to_end(&mut buf)?;
-
-                    if tx.capacity() > 90 {
-                        log::warn!("tx.capacity(): {}", tx.capacity());
+        if let Ok(entry) = entry {
+            if entry.path().is_file() {
+                let absolute_path = fs::canonicalize(entry.path())?;
+                if let Some(absolute_path_str) = absolute_path.to_str() {
+                    if !absolute_path_str.contains("/.") && !absolute_path_str.contains("/#") {
+                        let mut file = File::open(entry.path())?;
+                        let mut buf = Vec::new();
+                        file.read_to_end(&mut buf)?;
+                        // if tx.capacity() > 90 {
+                        // log::warn!("tx.capacity(): {}", tx.capacity());
+                        // }
+                        tx.send((absolute_path_str.to_string(), buf)).await?;
                     }
-                    tx.send((absolute_path_str.to_string(), buf)).await?;
                 }
             }
+        }
+    }
+    handle.await?;
+    for kv in sled.iter() {
+        let (_k, v) = kv?;
+        // let sha256 = String::from_utf8(k.to_vec())?;
+        let file_set: HashSet<String> = bincode::deserialize(&v[..])?;
+        if file_set.len() > 1 {
+            log::info!("same sha256 files: {:?}", file_set);
         }
     }
     Ok(())
