@@ -1,0 +1,99 @@
+import {
+    Button,
+    VerticalBox,
+    GroupBox,
+    CheckBox,
+    ListView,
+    HorizontalBox,
+    LineEdit,
+} from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "File Cleaner";
+    width: 700px;
+    height: 420px;
+
+    in-out property <string> selected_directory;
+    in-out property <bool> org_enabled;
+    in-out property <bool> html_enabled;
+    in-out property <bool> dsstore_enabled;
+    in-out property <string> action_text;
+
+    callback choose_dir();
+    callback action_clicked();
+
+    VerticalBox {
+        spacing: 16px;
+        padding: 16px;
+        GroupBox {
+            title: "Choose Dir";
+            VerticalBox {
+                spacing: 8px;
+
+                Text {
+                    text: "Target Path: ";
+                    font-size: 14px;
+                }
+
+                HorizontalBox {
+                    spacing: 8px;
+
+                    LineEdit {
+                        text: selected_directory;
+                        read-only: true;
+                        horizontal-stretch: 1;
+                    }
+
+                    Button {
+                        text: "Select...";
+                        width: 100px;
+                        clicked => {
+                            root.choose_dir()
+                        }
+                    }
+                }
+            }
+        }
+
+        GroupBox {
+            title: "Target File Type: ";
+
+            VerticalBox {
+                spacing: 8px;
+
+                CheckBox {
+                    text: "*.org~";
+                    checked: org_enabled;
+                    toggled => {
+                        root.action_text = "Scan"
+                    }
+                }
+
+                CheckBox {
+                    text: "*.html~";
+                    checked: org_enabled;
+                    toggled => {
+                        root.action_text = "Scan"
+                    }
+                }
+
+                CheckBox {
+                    text: "DS_Store";
+                    checked: org_enabled;
+                    toggled => {
+                        root.action_text = "Scan"
+                    }
+                }
+            }
+        }
+
+        Button {
+            text: action_text;
+            height: 48px;
+            horizontal-stretch: 1;
+            clicked => {
+                root.action_clicked()
+            }
+        }
+    }
+}
