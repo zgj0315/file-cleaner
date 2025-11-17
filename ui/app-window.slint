@@ -23,21 +23,24 @@ export component AppWindow inherits Window {
     callback choose_dir();
     callback action_clicked();
 
+    // Directory Select Area
     VerticalBox {
-        spacing: 16px;
-        padding: 16px;
+        spacing: 20px;
+        padding: 20px;
         GroupBox {
             title: "Choose Dir";
             VerticalBox {
-                spacing: 8px;
+                spacing: 10px;
+                padding: 6px;
 
                 Text {
                     text: "Target Path: ";
-                    font-size: 14px;
+                    font-size: 15px;
+                    color: #444;
                 }
 
                 HorizontalBox {
-                    spacing: 8px;
+                    spacing: 10px;
 
                     LineEdit {
                         text: selected_directory;
@@ -47,7 +50,7 @@ export component AppWindow inherits Window {
 
                     Button {
                         text: "Select...";
-                        width: 100px;
+                        width: 110px;
                         clicked => {
                             root.choose_dir()
                         }
@@ -56,26 +59,34 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Scan Results
         GroupBox {
             title: "Scan Results";
             VerticalBox {
+                spacing: 8px;
+                padding: 6px;
                 ListView {
                     for item in scan_results: Rectangle {
-                        height: 15px;
+                        height: 22px;
+                        background: #f7f7f7;
+                        border-radius: 4px;
                         Text {
                             text: item;
                             font-size: 13px;
+                            vertical-alignment: center;
                         }
                     }
                 }
             }
         }
 
+        // Target File Types
         GroupBox {
             title: "Target File Type: ";
 
             VerticalBox {
-                spacing: 8px;
+                spacing: 10px;
+                padding: 6px;
 
                 CheckBox {
                     text: "*.org~";
@@ -103,6 +114,7 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Action Button
         Button {
             text: action_text;
             height: 48px;
