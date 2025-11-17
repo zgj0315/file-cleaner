@@ -10,14 +10,15 @@ import {
 
 export component AppWindow inherits Window {
     title: "File Cleaner";
-    width: 700px;
-    height: 420px;
+    width: 800px;
+    height: 600px;
 
     in-out property <string> selected_directory;
     in-out property <bool> org_enabled;
     in-out property <bool> html_enabled;
     in-out property <bool> dsstore_enabled;
     in-out property <string> action_text;
+    in-out property <[string]> scan_results;
 
     callback choose_dir();
     callback action_clicked();
@@ -49,6 +50,21 @@ export component AppWindow inherits Window {
                         width: 100px;
                         clicked => {
                             root.choose_dir()
+                        }
+                    }
+                }
+            }
+        }
+
+        GroupBox {
+            title: "Scan Results";
+            VerticalBox {
+                ListView {
+                    for item in scan_results: Rectangle {
+                        height: 15px;
+                        Text {
+                            text: item;
+                            font-size: 13px;
                         }
                     }
                 }

@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::rc::Rc;
+
+use slint::{ModelRc, SharedString, VecModel};
 use walkdir::WalkDir;
 
 slint::include_modules!();
@@ -39,7 +42,14 @@ fn main() -> anyhow::Result<()> {
             println!("开始扫描: {dir}");
             let found_files = scan_files(&dir, &patterns);
             println!("扫描发现 {} 个垃圾文件", found_files.len());
+            let model = Rc::new(VecModel::from(
+                found_files
+                    .into_iter()
+                    .map(SharedString::from)
+                    .collect::<Vec<SharedString>>(),
+            ));
 
+            ui.set_scan_results(ModelRc::from(model));
             ui.set_action_text("Clean".into());
         } else {
             println!("开始清理: {dir}");
