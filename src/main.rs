@@ -18,7 +18,11 @@ fn main() -> anyhow::Result<()> {
     let ui_weak = ui.as_weak();
     ui.on_choose_dir(move || {
         let ui = ui_weak.unwrap();
-        if let Some(dir) = rfd::FileDialog::new().set_directory(".").pick_folder() {
+        let home_path = std::env::var("HOME").unwrap();
+        if let Some(dir) = rfd::FileDialog::new()
+            .set_directory(home_path)
+            .pick_folder()
+        {
             ui.set_selected_directory(dir.to_string_lossy().to_string().into());
             ui.set_action_text("Scan".into());
         }
