@@ -1,8 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::rc::Rc;
+use std::{fs, path::Path, rc::Rc};
 
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{Model, ModelRc, SharedString, VecModel};
 use walkdir::WalkDir;
 
 slint::include_modules!();
@@ -15,15 +15,53 @@ fn main() -> anyhow::Result<()> {
     ui.set_dsstore_enabled(true);
     ui.set_action_text("Scan".into());
 
+    // 设置初始路径和文件夹列表
+    let home_path_str = std::env::var("HOME").unwrap();
+    let home_path = Path::new(&home_path_str);
+
+    ui.set_current_path_parts(path_to_parts(&home_path));
+    ui.set_folder_list(list_folders(&home_path));
+
+    // 点击路径层处理
     let ui_weak = ui.as_weak();
-    ui.on_choose_dir(move || {
+    ui.on_folder_clicked(move |folder_name| {
         let ui = ui_weak.unwrap();
-        let home_path = std::env::var("HOME").unwrap();
-        if let Some(dir) = rfd::FileDialog::new()
-            .set_directory(home_path)
-            .pick_folder()
-        {
-            ui.set_selected_directory(dir.to_string_lossy().to_string().into());
+
+        let parts = ui.get_current_path_parts();
+        let mut new_path = std::path::PathBuf::new();
+
+        // 先构造当前路径
+        for i in 0..parts.row_count() {
+            let v = parts.row_data(i).unwrap().to_string();
+            new_path.push(v);
+        }
+
+        // 点击的子文件夹
+        new_path.push(folder_name);
+
+        // 刷新 UI
+        if new_path.exists() {
+            ui.set_current_path_parts(path_to_parts(&new_path));
+            ui.set_folder_list(list_folders(&new_path));
+            ui.set_action_text("Scan".into());
+        }
+    });
+    // 点击文件夹处理
+    let ui_weak = ui.as_weak();
+    ui.on_path_part_clicked(move |index| {
+        let ui = ui_weak.unwrap();
+
+        let parts = ui.get_current_path_parts();
+        let mut new_path = std::path::PathBuf::new();
+
+        for i in 0..=index {
+            let v = parts.row_data(i.try_into().unwrap()).unwrap().to_string();
+            new_path.push(v);
+        }
+
+        if new_path.exists() {
+            ui.set_current_path_parts(path_to_parts(&new_path));
+            ui.set_folder_list(list_folders(&new_path));
             ui.set_action_text("Scan".into());
         }
     });
@@ -117,6 +155,36 @@ fn pattern_match(file: &str, pat: &str) -> bool {
         return file.eq(pat);
     }
 }
+fn list_folders(path: &Path) -> ModelRc<SharedString> {
+    let mut folders = Vec::new();
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_dir() {
+                    folders.push(SharedString::from(
+                        entry.file_name().to_string_lossy().as_ref(),
+                    ));
+                }
+            }
+        }
+    }
+    folders.sort();
+    ModelRc::new(VecModel::from(folders))
+}
+
+// 将路径拆分为 ["Users","username","Downloads"]
+fn path_to_parts(path: &Path) -> ModelRc<SharedString> {
+    let mut parts = vec![SharedString::from("/")];
+    for comp in path.iter() {
+        if let Some(s) = comp.to_str() {
+            if s != "/" {
+                parts.push(SharedString::from(s.to_string()));
+            }
+        }
+    }
+    ModelRc::new(VecModel::from(parts))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

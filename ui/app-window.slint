@@ -25,6 +25,11 @@ export component AppWindow inherits Window {
     callback choose_dir();
     callback action_clicked();
 
+    in-out property <[string]> current_path_parts;
+    in-out property <[string]> folder_list;
+    callback path_part_clicked(int);
+    callback folder_clicked(string);
+
     // Directory Select Area
     VerticalBox {
         spacing: 20px;
@@ -34,28 +39,22 @@ export component AppWindow inherits Window {
             VerticalBox {
                 spacing: 10px;
                 padding: 6px;
-
-                Text {
-                    text: "Target Path: ";
-                    font-size: 15px;
-                    color: #444;
-                }
-
                 HorizontalBox {
-                    spacing: 10px;
-
-                    LineEdit {
-                        text: selected_directory;
-                        read-only: true;
-                        horizontal-stretch: 1;
-                    }
-
-                    Button {
-                        text: "Select...";
-                        width: 110px;
+                    spacing: 4px;
+                    for path_part[i] in current_path_parts: Button {
+                        text: path_part;
                         clicked => {
-                            root.choose_dir()
+                            path_part_clicked(i);
                         }
+                    }
+                }
+            }
+
+            ListView {
+                for item in folder_list: Button {
+                    text: item;
+                    clicked => {
+                        root.folder_clicked(item);
                     }
                 }
             }
