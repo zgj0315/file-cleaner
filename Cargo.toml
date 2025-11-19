@@ -12,3 +12,6 @@ walkdir = "2.5.0"
 [build-dependencies]
 anyhow = "1.0.100"
 slint-build = "1.14.1"
+
+[package.metadata.bundle]
+resources = ["font/NotoSansSC-Regular.ttf"]
