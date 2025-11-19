@@ -71,9 +71,17 @@ fn main() -> anyhow::Result<()> {
         let ui = ui_weak.unwrap();
 
         let current_action = ui.get_action_text().to_string();
-        let dir = ui.get_selected_directory().to_string();
+        // let dir = ui.get_selected_directory().to_string();
+        let parts = ui.get_current_path_parts();
+        let mut path = std::path::PathBuf::new();
 
-        if dir.is_empty() {
+        // 先构造当前路径
+        for i in 0..parts.row_count() {
+            let v = parts.row_data(i).unwrap().to_string();
+            path.push(v);
+        }
+
+        if !path.exists() {
             eprintln!("未选择目录");
             return;
         }
@@ -81,8 +89,8 @@ fn main() -> anyhow::Result<()> {
         let patterns = collect_patterns(&ui);
 
         if current_action == "Scan" {
-            println!("开始扫描: {dir}");
-            let found_files = scan_files(&dir, &patterns);
+            println!("开始扫描: {path:?}");
+            let found_files = scan_files(&path, &patterns);
             println!("扫描发现 {} 个垃圾文件", found_files.len());
             let model = Rc::new(VecModel::from(
                 found_files
@@ -94,8 +102,8 @@ fn main() -> anyhow::Result<()> {
             ui.set_scan_results(ModelRc::from(model));
             ui.set_action_text("Clean".into());
         } else {
-            println!("开始清理: {dir}");
-            let found_files = scan_files(&dir, &patterns);
+            println!("开始清理: {path:?}");
+            let found_files = scan_files(&path, &patterns);
 
             for f in found_files {
                 println!("delete {f}");
@@ -124,7 +132,7 @@ fn collect_patterns(ui: &AppWindow) -> Vec<&'static str> {
     p
 }
 
-fn scan_files(dir: &str, patterns: &[&str]) -> Vec<String> {
+fn scan_files(dir: &Path, patterns: &[&str]) -> Vec<String> {
     let mut found = vec![];
 
     for entry in WalkDir::new(dir) {
