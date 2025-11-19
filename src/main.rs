@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
 
             for f in found_files {
                 println!("delete {f}");
-                // let _ = std::fs::remove_file(&f);
+                let _ = std::fs::remove_file(&f);
             }
             println!("清理完成");
 
@@ -81,7 +81,7 @@ fn collect_patterns(ui: &AppWindow) -> Vec<&'static str> {
         p.push("*.html~");
     }
     if ui.get_dsstore_enabled() {
-        p.push("DS_Store");
+        p.push(".DS_Store");
     }
     p
 }
@@ -105,10 +105,27 @@ fn scan_files(dir: &str, patterns: &[&str]) -> Vec<String> {
 }
 
 fn pattern_match(file: &str, pat: &str) -> bool {
-    if pat.starts_with("*.") {
-        let ext = &pat[2..];
+    if pat.ends_with('*') {
+        // * 号结尾的情况
+        let ext = &pat[..(pat.len() - 1)];
+        return file.starts_with(ext);
+    } else if pat.starts_with('*') {
+        // * 号开头的情况
+        let ext = &pat[1..];
         return file.ends_with(ext);
     } else {
-        return file.contains(pat);
+        return file.eq(pat);
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn pattern_match_test() {
+        let file_name = "abc.org~";
+        let pat = "*.org~";
+        assert!(pattern_match(file_name, pat));
+        let pat = "abc.*";
+        assert!(pattern_match(file_name, pat));
     }
 }
