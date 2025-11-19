@@ -71,7 +71,6 @@ fn main() -> anyhow::Result<()> {
         let ui = ui_weak.unwrap();
 
         let current_action = ui.get_action_text().to_string();
-        // let dir = ui.get_selected_directory().to_string();
         let parts = ui.get_current_path_parts();
         let mut path = std::path::PathBuf::new();
 

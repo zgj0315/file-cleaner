@@ -6,14 +6,16 @@ import {
     ListView,
     HorizontalBox,
     LineEdit,
+    ScrollView,
+    StandardListView,
 } from "std-widgets.slint";
 import "../font/NotoSansSC-Regular.ttf";
 
 export component AppWindow inherits Window {
     default-font-family: "Noto Sans SC";
     title: "File Cleaner";
-    width: 800px;
-    height: 600px;
+    width: 900px;
+    height: 700px;
 
     in-out property <string> selected_directory;
     in-out property <bool> org_enabled;
@@ -22,106 +24,159 @@ export component AppWindow inherits Window {
     in-out property <string> action_text;
     in-out property <[string]> scan_results;
 
-    callback choose_dir();
-    callback action_clicked();
-
+    // 路径与文件夹逻辑
     in-out property <[string]> current_path_parts;
     in-out property <[string]> folder_list;
+    callback choose_dir();
+    callback action_clicked();
     callback path_part_clicked(int);
     callback folder_clicked(string);
 
-    // Directory Select Area
     VerticalBox {
-        spacing: 20px;
-        padding: 20px;
-        GroupBox {
-            title: "Choose Dir";
-            VerticalBox {
-                spacing: 10px;
-                padding: 6px;
-                HorizontalBox {
-                    spacing: 4px;
-                    for path_part[i] in current_path_parts: Button {
-                        text: path_part;
-                        clicked => {
-                            path_part_clicked(i);
-                        }
-                    }
-                }
-            }
+        padding: 16px;
+        spacing: 16px;
 
-            ListView {
-                for item in folder_list: Button {
-                    text: item;
+        // 1. 顶部导航区域
+        GroupBox {
+            title: "Current Location";
+            vertical-stretch: 0;
+
+            HorizontalBox {
+                padding: 4px;
+                alignment: start;
+                spacing: 4px;
+                for path_part[i] in current_path_parts: Button {
+                    text: path_part;
+                    height: 28px;
                     clicked => {
-                        root.folder_clicked(item);
+                        path_part_clicked(i);
                     }
                 }
             }
         }
 
-        // Scan Results
-        GroupBox {
-            title: "Scan Results";
-            VerticalBox {
-                spacing: 8px;
-                padding: 6px;
+        // 2. 中间内容区域
+        HorizontalBox {
+            spacing: 16px;
+            vertical-stretch: 1;
+
+            // 左侧：目录选择
+            GroupBox {
+                title: "Select Directory";
+                horizontal-stretch: 1;
+                vertical-stretch: 1;
+
                 ListView {
-                    for item in scan_results: Rectangle {
-                        height: 22px;
-                        background: #f7f7f7;
+                    for item in folder_list: Rectangle {
+                        // 关键修复：显式指定宽度和高度
+                        height: 30px;
+                        width: parent.width; 
+                        
+                        // 背景色逻辑：按下变深灰，悬停变浅灰，默认透明
+                        background: area.pressed ? #d0d0d0 : (area.has-hover ? #e8e8e8 : transparent);
                         border-radius: 4px;
+
+                        // 触摸/点击区域
+                        area := TouchArea {
+                            clicked => {
+                                root.folder_clicked(item);
+                            }
+                        }
+
+                        // 文本直接作为 Rectangle 的子元素，不使用 HorizontalBox
+                        Text {
+                            text: "📁 " + item;
+                            color: #222222; // 显式黑色
+                            font-size: 14px;
+                            
+                            // 布局定位
+                            x: 8px;
+                            vertical-alignment: center;
+                            
+                            // 防止文字过长溢出
+                            overflow: elide;
+                            width: parent.width - 16px;
+                        }
+                    }
+                }
+            }
+
+            // 右侧：扫描结果
+            GroupBox {
+                title: "Scan Results (" + scan_results.length + " items)";
+                horizontal-stretch: 2;
+                vertical-stretch: 1;
+
+                ListView {
+                    for item[i] in scan_results: Rectangle {
+                        height: 26px;
+                        width: parent.width;
+                        background: Math.mod(i, 2) == 0 ? #ffffff : #f9f9f9;
                         Text {
                             text: item;
-                            font-size: 13px;
+                            color: #555555;
+                            font-size: 12px;
+                            x: 8px;
                             vertical-alignment: center;
+                            overflow: elide;
+                            width: parent.width - 16px;
                         }
                     }
                 }
             }
         }
 
-        // Target File Types
+        // 3. 底部控制栏
         GroupBox {
-            title: "Target File Type: ";
+            title: "Settings & Actions";
+            vertical-stretch: 0;
 
-            VerticalBox {
-                spacing: 10px;
-                padding: 6px;
+            HorizontalBox {
+                spacing: 20px;
+                padding: 8px;
+                alignment: center; // 居中对齐
 
-                CheckBox {
-                    text: "*.org~";
-                    checked: org_enabled;
-                    toggled => {
-                        root.action_text = "Scan"
+                HorizontalBox {
+                    spacing: 10px;
+                    CheckBox {
+                        text: "*.org~";
+                        checked: root.org_enabled;
+                        toggled => {
+                            root.action_text = "Scan"
+                        }
+                    }
+
+                    CheckBox {
+                        text: "*.html~";
+                        checked: root.html_enabled;
+                        toggled => {
+                            root.action_text = "Scan"
+                        }
+                    }
+
+                    CheckBox {
+                        text: ".DS_Store";
+                        checked: root.dsstore_enabled;
+                        toggled => {
+                            root.action_text = "Scan"
+                        }
                     }
                 }
 
-                CheckBox {
-                    text: "*.html~";
-                    checked: org_enabled;
-                    toggled => {
-                        root.action_text = "Scan"
-                    }
+                // 占位符
+                Rectangle {
+                    horizontal-stretch: 1;
                 }
 
-                CheckBox {
-                    text: ".DS_Store";
-                    checked: org_enabled;
-                    toggled => {
-                        root.action_text = "Scan"
+                Button {
+                    text: root.action_text;
+                    width: 120px;
+                    height: 36px;
+                    primary: true;
+                    clicked => {
+                        root.action_clicked()
                     }
                 }
-            }
-        }
-
-        // Action Button
-        Button {
-            text: action_text;
-            height: 48px;
-            horizontal-stretch: 1;
-            clicked => {
-                root.action_clicked()
             }
         }
     }
