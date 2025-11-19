@@ -27,154 +27,227 @@ export component AppWindow inherits Window {
     // 路径与文件夹逻辑
     in-out property <[string]> current_path_parts;
     in-out property <[string]> folder_list;
+    
+    // [新增] 控制弹窗显示的变量
+    in-out property <bool> show_confirm_dialog: false;
+
     callback choose_dir();
     callback action_clicked();
     callback path_part_clicked(int);
     callback folder_clicked(string);
 
-    VerticalBox {
-        padding: 16px;
-        spacing: 16px;
+    // [修改] 使用 Rectangle 作为根容器，以便实现图层叠加（Main UI + 弹窗）
+    Rectangle {
+        
+        // --- 图层 1: 主界面 ---
+        VerticalBox {
+            padding: 16px;
+            spacing: 16px;
 
-        // 1. 顶部导航区域
-        GroupBox {
-            title: "Current Location";
-            vertical-stretch: 0;
+            // 1. 顶部导航区域
+            GroupBox {
+                title: "Current Location";
+                vertical-stretch: 0;
 
-            HorizontalBox {
-                padding: 4px;
-                alignment: start;
-                spacing: 4px;
-                for path_part[i] in current_path_parts: Button {
-                    text: path_part;
-                    height: 28px;
-                    clicked => {
-                        path_part_clicked(i);
+                HorizontalBox {
+                    padding: 4px;
+                    alignment: start;
+                    spacing: 4px;
+                    for path_part[i] in current_path_parts: Button {
+                        text: path_part;
+                        height: 28px;
+                        clicked => {
+                            path_part_clicked(i);
+                        }
                     }
                 }
             }
-        }
 
-        // 2. 中间内容区域
-        HorizontalBox {
-            spacing: 16px;
-            vertical-stretch: 1;
-
-            // 左侧：目录选择
-            GroupBox {
-                title: "Select Directory";
-                horizontal-stretch: 1;
+            // 2. 中间内容区域
+            HorizontalBox {
+                spacing: 16px;
                 vertical-stretch: 1;
 
-                ListView {
-                    for item in folder_list: Rectangle {
-                        // 关键修复：显式指定宽度和高度
-                        height: 30px;
-                        width: parent.width; 
-                        
-                        // 背景色逻辑：按下变深灰，悬停变浅灰，默认透明
-                        background: area.pressed ? #d0d0d0 : (area.has-hover ? #e8e8e8 : transparent);
-                        border-radius: 4px;
+                // 左侧：目录选择
+                GroupBox {
+                    title: "Select Directory";
+                    horizontal-stretch: 1;
+                    vertical-stretch: 1;
 
-                        // 触摸/点击区域
-                        area := TouchArea {
-                            clicked => {
-                                root.folder_clicked(item);
+                    ListView {
+                        for item in folder_list: Rectangle {
+                            height: 30px;
+                            width: parent.width;
+                            background: area.pressed ? #d0d0d0 : (area.has-hover ? #e8e8e8 : transparent);
+                            border-radius: 4px;
+
+                            area := TouchArea {
+                                clicked => {
+                                    root.folder_clicked(item);
+                                }
+                            }
+
+                            Text {
+                                text: "📁 " + item;
+                                color: #222222;
+                                font-size: 14px;
+                                x: 8px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                                width: parent.width - 16px;
+                            }
+                        }
+                    }
+                }
+
+                // 右侧：扫描结果
+                GroupBox {
+                    title: "Scan Results (" + scan_results.length + " items)";
+                    horizontal-stretch: 2;
+                    vertical-stretch: 1;
+
+                    ListView {
+                        for item[i] in scan_results: Rectangle {
+                            height: 26px;
+                            width: parent.width;
+                            background: Math.mod(i, 2) == 0 ? #ffffff : #f9f9f9;
+                            Text {
+                                text: item;
+                                color: #555555;
+                                font-size: 12px;
+                                x: 8px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                                width: parent.width - 16px;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. 底部控制栏
+            GroupBox {
+                title: "Settings & Actions";
+                vertical-stretch: 0;
+
+                HorizontalBox {
+                    spacing: 20px;
+                    padding: 8px;
+                    alignment: center;
+
+                    HorizontalBox {
+                        spacing: 10px;
+                        CheckBox {
+                            text: "*.org~";
+                            checked <=> root.org_enabled;
+                            toggled => {
+                                root.action_text = "Scan"
                             }
                         }
 
-                        // 文本直接作为 Rectangle 的子元素，不使用 HorizontalBox
-                        Text {
-                            text: "📁 " + item;
-                            color: #222222; // 显式黑色
-                            font-size: 14px;
-                            
-                            // 布局定位
-                            x: 8px;
-                            vertical-alignment: center;
-                            
-                            // 防止文字过长溢出
-                            overflow: elide;
-                            width: parent.width - 16px;
+                        CheckBox {
+                            text: "*.html~";
+                            checked <=> root.html_enabled;
+                            toggled => {
+                                root.action_text = "Scan"
+                            }
+                        }
+
+                        CheckBox {
+                            text: ".DS_Store";
+                            checked <=> root.dsstore_enabled;
+                            toggled => {
+                                root.action_text = "Scan"
+                            }
                         }
                     }
-                }
-            }
 
-            // 右侧：扫描结果
-            GroupBox {
-                title: "Scan Results (" + scan_results.length + " items)";
-                horizontal-stretch: 2;
-                vertical-stretch: 1;
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
 
-                ListView {
-                    for item[i] in scan_results: Rectangle {
-                        height: 26px;
-                        width: parent.width;
-                        background: Math.mod(i, 2) == 0 ? #ffffff : #f9f9f9;
-                        Text {
-                            text: item;
-                            color: #555555;
-                            font-size: 12px;
-                            x: 8px;
-                            vertical-alignment: center;
-                            overflow: elide;
-                            width: parent.width - 16px;
+                    Button {
+                        text: root.action_text;
+                        width: 120px;
+                        height: 36px;
+                        primary: true;
+                        // [修改] 核心逻辑：如果是 Clean，先弹窗；否则直接执行
+                        clicked => {
+                            if (root.action_text == "Clean") {
+                                root.show_confirm_dialog = true;
+                            } else {
+                                root.action_clicked();
+                            }
                         }
                     }
                 }
             }
         }
 
-        // 3. 底部控制栏
-        GroupBox {
-            title: "Settings & Actions";
-            vertical-stretch: 0;
+        // --- 图层 2: 确认弹窗 (遮罩层) ---
+        // 只有当 show_confirm_dialog 为 true 时才渲染
+        if root.show_confirm_dialog: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: #00000088; // 半透明黑色遮罩
 
-            HorizontalBox {
-                spacing: 20px;
-                padding: 8px;
-                alignment: center; // 居中对齐
+            // 拦截点击，防止点穿到底部 UI
+            TouchArea { }
 
-                HorizontalBox {
-                    spacing: 10px;
-                    CheckBox {
-                        text: "*.org~";
-                        checked <=> root.org_enabled;
-                        toggled => {
-                            root.action_text = "Scan"
-                        }
+            // 弹窗主体
+            Rectangle {
+                width: 300px;
+                height: 160px;
+                background: white;
+                border-radius: 8px;
+                // 简单的阴影模拟
+                border-width: 1px;
+                border-color: #aaaaaa;
+
+                VerticalBox {
+                    padding: 20px;
+                    spacing: 20px;
+                    alignment: center;
+
+                    // 提示文字
+                    Text {
+                        text: "⚠️ Warning";
+                        font-size: 18px;
+                        font-weight: 700;
+                        color: #d32f2f; // 红色警告
+                        horizontal-alignment: center;
                     }
 
-                    CheckBox {
-                        text: "*.html~";
-                        checked <=> root.html_enabled;
-                        toggled => {
-                            root.action_text = "Scan"
-                        }
+                    Text {
+                        text: "Permanently delete " + root.scan_results.length + " files?";
+                        font-size: 14px;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
                     }
 
-                    CheckBox {
-                        text: ".DS_Store";
-                        checked <=> root.dsstore_enabled;
-                        toggled => {
-                            root.action_text = "Scan"
+                    // 按钮组
+                    HorizontalBox {
+                        spacing: 20px;
+                        alignment: center;
+
+                        Button {
+                            text: "Cancel";
+                            width: 100px;
+                            clicked => {
+                                root.show_confirm_dialog = false;
+                            }
                         }
-                    }
-                }
 
-                // 占位符
-                Rectangle {
-                    horizontal-stretch: 1;
-                }
-
-                Button {
-                    text: root.action_text;
-                    width: 120px;
-                    height: 36px;
-                    primary: true;
-                    clicked => {
-                        root.action_clicked()
+                        Button {
+                            text: "Confirm";
+                            width: 100px;
+                            primary: true;
+                            clicked => {
+                                root.show_confirm_dialog = false;
+                                // 用户确认后，才真正调用 Rust 逻辑
+                                root.action_clicked();
+                            }
+                        }
                     }
                 }
             }
