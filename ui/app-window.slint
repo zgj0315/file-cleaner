@@ -140,7 +140,7 @@ export component AppWindow inherits Window {
                     spacing: 10px;
                     CheckBox {
                         text: "*.org~";
-                        checked: root.org_enabled;
+                        checked <=> root.org_enabled;
                         toggled => {
                             root.action_text = "Scan"
                         }
@@ -148,7 +148,7 @@ export component AppWindow inherits Window {
 
                     CheckBox {
                         text: "*.html~";
-                        checked: root.html_enabled;
+                        checked <=> root.html_enabled;
                         toggled => {
                             root.action_text = "Scan"
                         }
@@ -156,7 +156,7 @@ export component AppWindow inherits Window {
 
                     CheckBox {
                         text: ".DS_Store";
-                        checked: root.dsstore_enabled;
+                        checked <=> root.dsstore_enabled;
                         toggled => {
                             root.action_text = "Scan"
                         }
