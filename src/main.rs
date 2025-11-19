@@ -127,5 +127,8 @@ mod tests {
         assert!(pattern_match(file_name, pat));
         let pat = "abc.*";
         assert!(pattern_match(file_name, pat));
+        let file_name = ".DS_Store";
+        let pat = ".DS_Store";
+        assert!(pattern_match(file_name, pat));
     }
 }
