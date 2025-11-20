@@ -17,18 +17,22 @@ export component AppWindow inherits Window {
     width: 900px;
     height: 700px;
 
-    in-out property <string> selected_directory;
+    // 文件类型多选框
     in-out property <bool> org_enabled;
     in-out property <bool> html_enabled;
     in-out property <bool> dsstore_enabled;
+
+    // 扫描/清理按钮
     in-out property <string> action_text;
+
+    // 扫描结果
     in-out property <[string]> scan_results;
 
     // 路径与文件夹逻辑
     in-out property <[string]> current_path_parts;
     in-out property <[string]> folder_list;
     
-    // [新增] 控制弹窗显示的变量
+    // 控制弹窗显示的变量
     in-out property <bool> show_confirm_dialog: false;
 
     callback choose_dir();
@@ -36,7 +40,7 @@ export component AppWindow inherits Window {
     callback path_part_clicked(int);
     callback folder_clicked(string);
 
-    // [修改] 使用 Rectangle 作为根容器，以便实现图层叠加（Main UI + 弹窗）
+    // 使用 Rectangle 作为根容器，以便实现图层叠加（Main UI + 弹窗）
     Rectangle {
         
         // --- 图层 1: 主界面 ---
@@ -46,7 +50,7 @@ export component AppWindow inherits Window {
 
             // 1. 顶部导航区域
             GroupBox {
-                title: "Current Location";
+                title: "扫描路径";
                 vertical-stretch: 0;
 
                 HorizontalBox {
@@ -70,7 +74,7 @@ export component AppWindow inherits Window {
 
                 // 左侧：目录选择
                 GroupBox {
-                    title: "Select Directory";
+                    title: "可选文件夹";
                     horizontal-stretch: 1;
                     vertical-stretch: 1;
 
@@ -102,7 +106,7 @@ export component AppWindow inherits Window {
 
                 // 右侧：扫描结果
                 GroupBox {
-                    title: "Scan Results (" + scan_results.length + " items)";
+                    title: "扫描结果 (" + scan_results.length + " 个)";
                     horizontal-stretch: 2;
                     vertical-stretch: 1;
 
@@ -127,7 +131,7 @@ export component AppWindow inherits Window {
 
             // 3. 底部控制栏
             GroupBox {
-                title: "Settings & Actions";
+                title: "设置";
                 vertical-stretch: 0;
 
                 HorizontalBox {
@@ -141,7 +145,7 @@ export component AppWindow inherits Window {
                             text: "*.org~";
                             checked <=> root.org_enabled;
                             toggled => {
-                                root.action_text = "Scan"
+                                root.action_text = "扫描"
                             }
                         }
 
@@ -149,7 +153,7 @@ export component AppWindow inherits Window {
                             text: "*.html~";
                             checked <=> root.html_enabled;
                             toggled => {
-                                root.action_text = "Scan"
+                                root.action_text = "扫描"
                             }
                         }
 
@@ -157,7 +161,7 @@ export component AppWindow inherits Window {
                             text: ".DS_Store";
                             checked <=> root.dsstore_enabled;
                             toggled => {
-                                root.action_text = "Scan"
+                                root.action_text = "扫描"
                             }
                         }
                     }
@@ -173,7 +177,7 @@ export component AppWindow inherits Window {
                         primary: true;
                         // [修改] 核心逻辑：如果是 Clean，先弹窗；否则直接执行
                         clicked => {
-                            if (root.action_text == "Clean") {
+                            if (root.action_text == "清理") {
                                 root.show_confirm_dialog = true;
                             } else {
                                 root.action_clicked();

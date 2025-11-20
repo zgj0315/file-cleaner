@@ -9,11 +9,11 @@ slint::include_modules!();
 
 fn main() -> anyhow::Result<()> {
     let ui = AppWindow::new()?;
-    ui.set_selected_directory("".into());
+
     ui.set_org_enabled(true);
     ui.set_html_enabled(true);
     ui.set_dsstore_enabled(true);
-    ui.set_action_text("Scan".into());
+    ui.set_action_text("扫描".into());
 
     // 设置初始路径和文件夹列表
     let home_path_str = std::env::var("HOME").unwrap();
@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
         if new_path.exists() {
             ui.set_current_path_parts(path_to_parts(&new_path));
             ui.set_folder_list(list_folders(&new_path));
-            ui.set_action_text("Scan".into());
+            ui.set_action_text("扫描".into());
         }
     });
     // 点击文件夹处理
@@ -62,7 +62,7 @@ fn main() -> anyhow::Result<()> {
         if new_path.exists() {
             ui.set_current_path_parts(path_to_parts(&new_path));
             ui.set_folder_list(list_folders(&new_path));
-            ui.set_action_text("Scan".into());
+            ui.set_action_text("扫描".into());
         }
     });
 
@@ -87,7 +87,7 @@ fn main() -> anyhow::Result<()> {
 
         let patterns = collect_patterns(&ui);
 
-        if current_action == "Scan" {
+        if current_action == "扫描" {
             println!("开始扫描: {path:?}");
             let found_files = scan_files(&path, &patterns);
             println!("扫描发现 {} 个垃圾文件", found_files.len());
@@ -99,8 +99,8 @@ fn main() -> anyhow::Result<()> {
             ));
 
             ui.set_scan_results(ModelRc::from(model));
-            ui.set_action_text("Clean".into());
-        } else {
+            ui.set_action_text("清理".into());
+        } else if current_action == "清理" {
             println!("开始清理: {path:?}");
             let found_files = scan_files(&path, &patterns);
 
@@ -110,7 +110,7 @@ fn main() -> anyhow::Result<()> {
             }
             println!("清理完成");
 
-            ui.set_action_text("Scan".into());
+            ui.set_action_text("扫描".into());
         }
     });
     ui.run()?;
