@@ -1,51 +1,43 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fs, path::Path, rc::Rc};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    rc::Rc,
+    thread,
+};
 
 use slint::{Model, ModelRc, SharedString, VecModel};
 use walkdir::WalkDir;
+use wildmatch::WildMatch;
 
 slint::include_modules!();
 
 fn main() -> anyhow::Result<()> {
     let ui = AppWindow::new()?;
 
+    // 初始化 UI 状态
     ui.set_org_enabled(true);
     ui.set_html_enabled(true);
     ui.set_dsstore_enabled(true);
     ui.set_action_text("扫描".into());
 
-    // 设置初始路径和文件夹列表
-    let home_path_str = std::env::var("HOME").unwrap();
-    let home_path = Path::new(&home_path_str);
+    // 获取 home 目录
+    let home_path = dirs::home_dir().ok_or(anyhow::anyhow!("无法找到 home 目录"))?;
 
-    ui.set_current_path_parts(path_to_parts(&home_path));
-    ui.set_folder_list(list_folders(&home_path));
+    update_ui_path(&ui, &home_path);
 
-    // 点击路径层处理
+    // 路径点击
     let ui_weak = ui.as_weak();
     ui.on_folder_clicked(move |folder_name| {
         let ui = ui_weak.unwrap();
-
-        let parts = ui.get_current_path_parts();
-        let mut new_path = std::path::PathBuf::new();
-
-        // 先构造当前路径
-        for i in 0..parts.row_count() {
-            let v = parts.row_data(i).unwrap().to_string();
-            new_path.push(v);
-        }
-
-        // 点击的子文件夹
-        new_path.push(folder_name);
-
-        // 刷新 UI
-        if new_path.exists() {
-            ui.set_current_path_parts(path_to_parts(&new_path));
-            ui.set_folder_list(list_folders(&new_path));
-            ui.set_action_text("扫描".into());
+        let mut path = reconstruct_path(&ui);
+        path.push(folder_name.as_str());
+        if path.exists() {
+            update_ui_path(&ui, &path);
         }
     });
+
     // 点击文件夹处理
     let ui_weak = ui.as_weak();
     ui.on_path_part_clicked(move |index| {
@@ -60,63 +52,107 @@ fn main() -> anyhow::Result<()> {
         }
 
         if new_path.exists() {
-            ui.set_current_path_parts(path_to_parts(&new_path));
-            ui.set_folder_list(list_folders(&new_path));
-            ui.set_action_text("扫描".into());
+            update_ui_path(&ui, &new_path);
         }
     });
 
+    // 扫描与清理
     let ui_weak = ui.as_weak();
     ui.on_action_clicked(move || {
         let ui = ui_weak.unwrap();
 
         let current_action = ui.get_action_text().to_string();
-        let parts = ui.get_current_path_parts();
-        let mut path = std::path::PathBuf::new();
-
-        // 先构造当前路径
-        for i in 0..parts.row_count() {
-            let v = parts.row_data(i).unwrap().to_string();
-            path.push(v);
-        }
+        let path = reconstruct_path(&ui);
 
         if !path.exists() {
             eprintln!("未选择目录");
             return;
         }
 
+        // 获取配置的文件类型
         let patterns = collect_patterns(&ui);
 
-        if current_action == "扫描" {
-            println!("开始扫描: {path:?}");
-            let found_files = scan_files(&path, &patterns);
-            println!("扫描发现 {} 个垃圾文件", found_files.len());
-            let model = Rc::new(VecModel::from(
-                found_files
-                    .into_iter()
-                    .map(SharedString::from)
-                    .collect::<Vec<SharedString>>(),
-            ));
+        // UI 进入加载状态
+        ui.set_action_text("处理中...".into());
 
-            ui.set_scan_results(ModelRc::from(model));
-            ui.set_action_text("清理".into());
-        } else if current_action == "清理" {
-            println!("开始清理: {path:?}");
-            let found_files = scan_files(&path, &patterns);
+        let files_to_delete: Vec<String> = if current_action == "清理" {
+            let model = ui.get_scan_results();
+            (0..model.row_count())
+                .map(|i| model.row_data(i).unwrap().to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
 
-            for f in found_files {
-                println!("delete {f}");
-                let _ = std::fs::remove_file(&f);
+        let ui_weak_thread = ui_weak.clone();
+        thread::spawn(move || {
+            if current_action == "扫描" {
+                // 扫描操作，可能很耗时
+                let found_files = scan_files(&path, &patterns);
+
+                // 回到主线程更新 UI
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak_thread.upgrade() {
+                        let model = Rc::new(VecModel::from(
+                            found_files
+                                .into_iter()
+                                .map(SharedString::from)
+                                .collect::<Vec<_>>(),
+                        ));
+                        ui.set_scan_results(ModelRc::from(model));
+                        ui.set_action_text("清理".into());
+                    }
+                });
+            } else if current_action == "清理" {
+                // 在清理前最好再次扫描或复用上一次的结果（为了安全，这里简化为重扫并删）
+                // 实际生产中应该只删除列表中显示的文件
+
+                for f in files_to_delete {
+                    println!("delete {f:?}");
+                    let _ = std::fs::remove_file(f);
+                }
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak_thread.upgrade() {
+                        // 清空列表
+                        ui.set_scan_results(ModelRc::from(Rc::new(VecModel::from(vec![]))));
+                        ui.set_action_text("扫描".into());
+                    }
+                });
             }
-            println!("清理完成");
-
-            ui.set_action_text("扫描".into());
-        }
+        });
     });
     ui.run()?;
     Ok(())
 }
 
+/**
+ * UI 更新逻辑
+ */
+fn update_ui_path(ui: &AppWindow, path: &Path) {
+    ui.set_current_path_parts(path_to_parts(path));
+    ui.set_folder_list(list_folders(path));
+    ui.set_action_text("扫描".into());
+    // 清空旧的扫描结果
+    ui.set_scan_results(ModelRc::from(Rc::new(VecModel::from(vec![]))));
+}
+
+/**
+ * 路径重组逻辑
+ */
+fn reconstruct_path(ui: &AppWindow) -> PathBuf {
+    let parts = ui.get_current_path_parts();
+    let mut path = PathBuf::new();
+    for i in 0..parts.row_count() {
+        let v = parts.row_data(i).unwrap().to_string();
+        path.push(v);
+    }
+    path
+}
+
+/**
+ * 文件类型
+ */
 fn collect_patterns(ui: &AppWindow) -> Vec<&'static str> {
     let mut p = vec![];
     if ui.get_org_enabled() {
@@ -130,16 +166,18 @@ fn collect_patterns(ui: &AppWindow) -> Vec<&'static str> {
     }
     p
 }
-
+/**
+ * 扫描目录中的文件
+ */
 fn scan_files(dir: &Path, patterns: &[&str]) -> Vec<String> {
     let mut found = vec![];
 
     for entry in WalkDir::new(dir) {
         if let Ok(entry) = entry {
             if entry.file_type().is_file() {
-                let name = entry.file_name().to_string_lossy().to_string();
+                let file_name = entry.file_name().to_string_lossy().to_string();
                 for p in patterns {
-                    if pattern_match(&name, p) {
+                    if WildMatch::new(p).matches(&file_name) {
                         found.push(entry.path().to_string_lossy().into_owned());
                     }
                 }
@@ -149,19 +187,6 @@ fn scan_files(dir: &Path, patterns: &[&str]) -> Vec<String> {
     found
 }
 
-fn pattern_match(file: &str, pat: &str) -> bool {
-    if pat.ends_with('*') {
-        // * 号结尾的情况
-        let ext = &pat[..(pat.len() - 1)];
-        return file.starts_with(ext);
-    } else if pat.starts_with('*') {
-        // * 号开头的情况
-        let ext = &pat[1..];
-        return file.ends_with(ext);
-    } else {
-        return file.eq(pat);
-    }
-}
 fn list_folders(path: &Path) -> ModelRc<SharedString> {
     let mut folders = Vec::new();
     if let Ok(entries) = fs::read_dir(path) {
@@ -178,32 +203,34 @@ fn list_folders(path: &Path) -> ModelRc<SharedString> {
     folders.sort();
     ModelRc::new(VecModel::from(folders))
 }
-
-// 将路径拆分为 ["Users","username","Downloads"]
+/**
+ * 拆分路径
+ * 将路径 /Users/username/Downloads 拆分为 ["Users","username","Downloads"]
+ */
 fn path_to_parts(path: &Path) -> ModelRc<SharedString> {
-    let mut parts = vec![SharedString::from("/")];
-    for comp in path.iter() {
-        if let Some(s) = comp.to_str() {
-            if s != "/" {
-                parts.push(SharedString::from(s.to_string()));
-            }
-        }
+    let mut parts = vec![];
+    for component in path.components() {
+        let s = component.as_os_str().to_string_lossy();
+        parts.push(SharedString::from(s.into_owned()));
     }
+
     ModelRc::new(VecModel::from(parts))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn pattern_match_test() {
-        let file_name = "abc.org~";
-        let pat = "*.org~";
-        assert!(pattern_match(file_name, pat));
-        let pat = "abc.*";
-        assert!(pattern_match(file_name, pat));
-        let file_name = ".DS_Store";
-        let pat = ".DS_Store";
-        assert!(pattern_match(file_name, pat));
+    fn path_to_parts_test() {
+        // Linux
+        let path = Path::new("/home/zhaogj/Download");
+        let model = path_to_parts(path);
+        let actual: Vec<String> = (0..model.row_count())
+            .map(|i| model.row_data(i).unwrap().to_string())
+            .collect();
+
+        let expected = vec!["/", "home", "zhaogj", "Download"];
+        assert_eq!(actual, expected, "路径拆分结果与预期不符");
     }
 }
