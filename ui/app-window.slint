@@ -17,13 +17,19 @@ export component AppWindow inherits Window {
     width: 900px;
     height: 700px;
 
-    // 文件类型多选框
+    // 文件类型多选框状体属性
     in-out property <bool> org_enabled;
     in-out property <bool> html_enabled;
     in-out property <bool> dsstore_enabled;
 
+    // 是否正在处理（扫描或清理中），用于禁用交互
+    in-out property <bool> is_processing: false;
+
     // 扫描/清理按钮
     in-out property <string> action_text;
+
+    // 底部状态栏信息
+    in-out property <string> status_message: "就绪"; 
 
     // 扫描结果
     in-out property <[string]> scan_results;
@@ -46,22 +52,43 @@ export component AppWindow inherits Window {
         // --- 图层 1: 主界面 ---
         VerticalBox {
             padding: 16px;
-            spacing: 16px;
+            spacing: 12px;
 
             // 1. 顶部导航区域
             GroupBox {
-                title: "扫描路径";
+                title: "当前路径";
                 vertical-stretch: 0;
 
-                HorizontalBox {
-                    padding: 4px;
-                    alignment: start;
-                    spacing: 4px;
-                    for path_part[i] in current_path_parts: Button {
-                        text: path_part;
-                        height: 28px;
-                        clicked => {
-                            path_part_clicked(i);
+                Rectangle {
+                    background: white;
+                    border-radius: 4px;
+                    border-color: #cccccc;
+                    border-width: 1px;
+                    height: 36px;
+                    HorizontalBox {
+                        padding: 4px;
+                        alignment: start;
+                        spacing: 2px;
+
+                        for path_part[i] in current_path_parts: Rectangle {
+                            width: txt.preferred-width + 16px;
+                            height: 26px;
+                            border-radius: 4px;
+                            background: ta_path_part.pressed ? #d0d0d0 : (ta_path_part.has-hover ? #e0e0e0 : transparent);
+                            txt := Text {
+                                text: path-part + " /";
+                                color: #333;
+                                vertical-alignment: center;
+                                horizontal-alignment: center;
+                            }
+
+                            ta_path_part := TouchArea {
+                                mouse-cursor: pointer;
+                                enabled: !root.is_processing;
+                                clicked => {
+                                    root.path_part_clicked(i);
+                                }
+                            }
                         }
                     }
                 }
@@ -69,36 +96,42 @@ export component AppWindow inherits Window {
 
             // 2. 中间内容区域
             HorizontalBox {
-                spacing: 16px;
+                spacing: 12px;
                 vertical-stretch: 1;
 
                 // 左侧：目录选择
                 GroupBox {
-                    title: "可选文件夹";
-                    horizontal-stretch: 1;
+                    title: "子文件夹";
+                    horizontal-stretch: 3;
                     vertical-stretch: 1;
 
-                    ListView {
-                        for item in folder_list: Rectangle {
-                            height: 30px;
-                            width: parent.width;
-                            background: area.pressed ? #d0d0d0 : (area.has-hover ? #e8e8e8 : transparent);
-                            border-radius: 4px;
+                    Rectangle {
+                        background: white;
+                        border-color: #ccc;
+                        border-width: 1px;
+                        ListView {
+                            for item in folder_list: Rectangle {
+                                height: 32px;
+                                width: parent.width;
+                                background: ta_folder.pressed ? #cce8ff : (ta_folder.has-hover ? #e6f4ff : transparent);
 
-                            area := TouchArea {
-                                clicked => {
-                                    root.folder_clicked(item);
+                                ta_folder := TouchArea {
+                                    mouse-cursor: pointer;
+                                    enabled: !root.is_processing;
+                                    clicked => {
+                                        root.folder_clicked(item);
+                                    }
                                 }
-                            }
 
-                            Text {
-                                text: "📁 " + item;
-                                color: #222222;
-                                font-size: 14px;
-                                x: 8px;
-                                vertical-alignment: center;
-                                overflow: elide;
-                                width: parent.width - 16px;
+                                Text {
+                                    text: "📁 " + item;
+                                    color: #222222;
+                                    font-size: 14px;
+                                    x: 8px;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                    width: parent.width - 16px;
+                                }
                             }
                         }
                     }
@@ -106,24 +139,36 @@ export component AppWindow inherits Window {
 
                 // 右侧：扫描结果
                 GroupBox {
-                    title: "扫描结果 (" + scan_results.length + " 个)";
-                    horizontal-stretch: 2;
+                    title: "扫描结果 (" + scan_results.length + " 个文件)";
+                    horizontal-stretch: 5;
                     vertical-stretch: 1;
 
-                    ListView {
-                        for item[i] in scan_results: Rectangle {
-                            height: 26px;
-                            width: parent.width;
-                            background: Math.mod(i, 2) == 0 ? #ffffff : #f9f9f9;
-                            Text {
-                                text: item;
-                                color: #555555;
-                                font-size: 12px;
-                                x: 8px;
-                                vertical-alignment: center;
-                                overflow: elide;
-                                width: parent.width - 16px;
+                    Rectangle {
+                        background: white;
+                        border-color: #ccc;
+                        border-width: 1px;
+                        ListView {
+                            for item[i] in scan_results: Rectangle {
+                                height: 24px;
+                                width: parent.width;
+                                background: Math.mod(i, 2) == 0 ? #ffffff : #fafafa;
+                                Text {
+                                    text: item;
+                                    color: #555;
+                                    font-size: 12px;
+                                    x: 8px;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                    width: parent.width - 16px;
+                                }
                             }
+                        }
+
+                        if scan_results.length == 0:Text {
+                            text: "暂无扫描结果";
+                            color: #999;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
                         }
                     }
                 }
@@ -131,19 +176,28 @@ export component AppWindow inherits Window {
 
             // 3. 底部控制栏
             GroupBox {
-                title: "设置";
+                title: "控制面板";
                 vertical-stretch: 0;
 
                 HorizontalBox {
                     spacing: 20px;
-                    padding: 8px;
+                    padding: 4px;
                     alignment: center;
 
+                    Text {
+                        text: root.status_message;
+                        color: #666;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        // 占据左侧空间
+                    }
+
                     HorizontalBox {
-                        spacing: 10px;
+                        spacing: 16px;
                         CheckBox {
                             text: "*.org~";
                             checked <=> root.org_enabled;
+                            enabled: !root.is_processing;
                             toggled => {
                                 root.action_text = "扫描"
                             }
@@ -152,6 +206,7 @@ export component AppWindow inherits Window {
                         CheckBox {
                             text: "*.html~";
                             checked <=> root.html_enabled;
+                            enabled: !root.is_processing;
                             toggled => {
                                 root.action_text = "扫描"
                             }
@@ -160,24 +215,20 @@ export component AppWindow inherits Window {
                         CheckBox {
                             text: ".DS_Store";
                             checked <=> root.dsstore_enabled;
+                            enabled: !root.is_processing;
                             toggled => {
                                 root.action_text = "扫描"
                             }
                         }
                     }
 
-                    Rectangle {
-                        horizontal-stretch: 1;
-                    }
-
                     Button {
-                        text: root.action_text;
+                        text: root.is_processing ? "处理中..." : root.action_text;
                         width: 120px;
-                        height: 36px;
+                        height: 38px;
                         primary: true;
-                        // [修改] 核心逻辑：如果是 Clean，先弹窗；否则直接执行
                         clicked => {
-                            if (root.action_text == "清理") {
+                            if (root.action_text == "清理" && root.scan_results.length > 0) {
                                 root.show_confirm_dialog = true;
                             } else {
                                 root.action_clicked();
@@ -193,29 +244,29 @@ export component AppWindow inherits Window {
         if root.show_confirm_dialog: Rectangle {
             width: 100%;
             height: 100%;
-            background: #00000088; // 半透明黑色遮罩
+            background: #00000066; // 半透明黑色遮罩
 
             // 拦截点击，防止点穿到底部 UI
             TouchArea { }
 
             // 弹窗主体
             Rectangle {
-                width: 300px;
-                height: 160px;
+                width: 320px;
+                height: 180px;
                 background: white;
                 border-radius: 8px;
                 // 简单的阴影模拟
                 border-width: 1px;
-                border-color: #aaaaaa;
+                border-color: #999;
 
                 VerticalBox {
-                    padding: 20px;
+                    padding: 24px;
                     spacing: 20px;
                     alignment: center;
 
                     // 提示文字
                     Text {
-                        text: "⚠️ Warning";
+                        text: "警告!";
                         font-size: 18px;
                         font-weight: 700;
                         color: #d32f2f; // 红色警告
@@ -223,10 +274,11 @@ export component AppWindow inherits Window {
                     }
 
                     Text {
-                        text: "Permanently delete " + root.scan_results.length + " files?";
+                        text: "确认要永久删除这 " + root.scan_results.length + " 个文件吗？\n此操作无法撤销。";
                         font-size: 14px;
                         horizontal-alignment: center;
                         wrap: word-wrap;
+                        color: #333;
                     }
 
                     // 按钮组
@@ -235,7 +287,7 @@ export component AppWindow inherits Window {
                         alignment: center;
 
                         Button {
-                            text: "Cancel";
+                            text: "取消";
                             width: 100px;
                             clicked => {
                                 root.show_confirm_dialog = false;
@@ -243,7 +295,7 @@ export component AppWindow inherits Window {
                         }
 
                         Button {
-                            text: "Confirm";
+                            text: "确认";
                             width: 100px;
                             primary: true;
                             clicked => {
