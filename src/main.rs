@@ -250,15 +250,13 @@ fn is_ignored(entry: &DirEntry) -> bool {
 fn scan_files(dir: &Path, patterns: &[&str]) -> Vec<String> {
     let mut found = vec![];
     let walker = WalkDir::new(dir).into_iter();
-    for entry in walker.filter_entry(|e| !is_ignored(e)) {
-        if let Ok(entry) = entry {
-            if entry.file_type().is_file() {
-                let file_name = entry.file_name().to_string_lossy().to_string();
-                for p in patterns {
-                    if WildMatch::new(p).matches(&file_name) {
-                        found.push(entry.path().to_string_lossy().into_owned());
-                        break; // 匹配到一个规则即可
-                    }
+    for entry in walker.filter_entry(|e| !is_ignored(e)).flatten() {
+        if entry.file_type().is_file() {
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            for p in patterns {
+                if WildMatch::new(p).matches(&file_name) {
+                    found.push(entry.path().to_string_lossy().into_owned());
+                    break; // 匹配到一个规则即可
                 }
             }
         }
